@@ -262,7 +262,13 @@
 
   .header-left {
     width: 100%;
-    justify-content: space-between;
+    justify-content: center;
+    position: relative;
+  }
+
+  .btn-back {
+    position: absolute;
+    left: 0;
   }
 
   .header-actions {
@@ -320,10 +326,21 @@
   gap: var(--spacing-md);
 }
 
+.canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: 100%;
+  position: relative;
+  padding: var(--spacing-md);
+}
+
 .canvas-area {
-  /* flex: 1; Removed to allow square shape with empty space */
-  height: 70%;
-  width: auto;
+  /* Responsive sizing: fill wrapper but keep square */
+  width: 100vmax;
+  height: 100vmax;
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 1 / 1;
@@ -337,6 +354,22 @@
   justify-content: center;
   position: relative;
   /* Added for absolute positioning of children */
+  box-sizing: border-box;
+  flex-shrink: 0;
+  /* Don't shrink below aspect ratio */
+  transition: all 0.3s ease;
+}
+
+/* View Mode Specifics */
+.view-mode .canvas-area {
+  width: 500px;
+  height: 500px;
+  max-width: 90vmin;
+  max-height: 90vmin;
+  border: none;
+  /* Cleaner look for viewing */
+  box-shadow: var(--shadow-xl);
+  /* Add some depth */
 }
 
 .draggable-text {
@@ -345,7 +378,7 @@
   border-radius: 4px;
 }
 
-.draggable-text:hover {
+.customization-page:not(.view-mode) .draggable-text:hover {
   border-color: var(--color-primary);
 }
 
@@ -354,7 +387,7 @@
   user-select: none;
 }
 
-.draggable-image:hover {
+.customization-page:not(.view-mode) .draggable-image:hover {
   border-color: var(--color-primary);
 }
 
@@ -381,7 +414,7 @@
   user-select: none;
 }
 
-.draggable-link:hover {
+.customization-page:not(.view-mode) .draggable-link:hover {
   border-color: var(--color-primary);
 }
 
@@ -722,4 +755,43 @@
     overflow: hidden;
     margin: 0 auto;
   }
+
+  .view-mode-footer {
+    font-size: 0.75rem;
+    bottom: var(--spacing-md);
+    padding: 0 0.5rem;
+    text-align: center;
+  }
+}
+
+.view-mode-footer {
+  position: absolute;
+  bottom: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  width: 100%;
+  text-align: center;
+  pointer-events: none;
+  /* Let clicks pass through if overlapping, but link needs pointer-events: auto */
+}
+
+.view-mode-footer a {
+  pointer-events: auto;
+}
+
+.footer-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all var(--transition);
+}
+
+.footer-link:hover {
+  color: var(--color-secondary);
+  text-decoration: underline;
 }

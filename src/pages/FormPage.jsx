@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import heroImage from '../assets/Create your own Advent Calendar.png';
 import './FormPage.css';
-
+import { generateToken, uploadFile } from '../services/supabase';
 import { Snowfall } from 'react-snowfall';
 
 function FormPage() {
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -29,16 +30,37 @@ function FormPage() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    navigate('/calendar', {
-      state: {
+    setIsSubmitting(true);
+
+    try {
+      const token = generateToken();
+      const calendarData = {
+        token,
         title: formData.title,
         description: formData.description,
-        timezone: formData.timezone
-      }
-    });
+        timezone: formData.timezone,
+        daysCount: 24,
+        createdAt: new Date().toISOString()
+      };
+
+      // Create a Blob for the JSON file
+      const blob = new Blob([JSON.stringify(calendarData)], { type: 'application/json' });
+      const file = new File([blob], 'calendar.json', { type: 'application/json' });
+
+      // Upload to Supabase
+      // Path: calendar/<token>/calendar.json
+      await uploadFile(file, `calendar/${token}`, 'calendar.json');
+
+      console.log('Calendar created:', token);
+      navigate(`/calendar/${token}/editor`);
+    } catch (error) {
+      console.error('Failed to create calendar:', error);
+      alert('Failed to create calendar. Please check your Supabase credentials in .env');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -199,8 +221,9 @@ function FormPage() {
             <button
               type="submit"
               className="btn-submit"
+              disabled={isSubmitting}
             >
-              Create Calendar
+              {isSubmitting ? 'Creating...' : 'Create Calendar'}
             </button>
           </div>
         </form>

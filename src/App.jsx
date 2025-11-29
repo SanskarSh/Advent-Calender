@@ -9,8 +9,10 @@ function App() {
     <Routes>
       <Route path="/" element={<EntryPage />} />
       <Route path="/create" element={<FormPage />} />
-      <Route path="/calendar" element={<EditorPage />} />
-      <Route path="/editor/day/:dayId" element={<DateCustomizationPage />} />
+      <Route path="/calendar/:token" element={<EditorPage />} />
+      <Route path="/calendar/:token/editor" element={<EditorPage />} />
+      <Route path="/calendar/:token/day/:dayId" element={<DateCustomizationPage />} />
+      <Route path="/calendar/:token/edit/day/:dayId" element={<DateCustomizationPage />} />
     </Routes>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Eraser, Check, Type, Image as ImageIcon, Link2,
   Bold, Italic, Trash2, BringToFront, SendToBack, X, Move,
@@ -9,19 +9,27 @@ import { DndContext, useDraggable, useSensors, useSensor, PointerSensor } from '
 import { CSS } from '@dnd-kit/utilities';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Snowfall } from 'react-snowfall';
+import { fetchJson, uploadFile, listFiles } from '../services/supabase';
 import './DateCustomizationPage.css';
 
-function DraggableText({ id, content, position, style, isSelected, onSelect, onUpdate }) {
+function DraggableText({ id, content, position, style, isSelected, onSelect, onUpdate, isReadOnly, scale = 1 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: id,
+    disabled: isReadOnly,
   });
 
+  const adjustedTransform = transform ? {
+    ...transform,
+    x: transform.x / scale,
+    y: transform.y / scale,
+  } : null;
+
   const dragStyle = {
-    transform: CSS.Translate.toString(transform),
+    transform: CSS.Translate.toString(adjustedTransform),
     left: position.x,
     top: position.y,
     position: 'absolute',
-    cursor: 'move',
+    cursor: isReadOnly ? 'default' : 'move',
     zIndex: isSelected ? 1000 : 1, // Bring to front when dragging/selected
     ...style, // Apply custom styles (color, font, etc.)
   };
@@ -34,41 +42,62 @@ function DraggableText({ id, content, position, style, isSelected, onSelect, onU
       {...attributes}
       className={`draggable-text ${isSelected ? 'selected' : ''}`}
       onClick={(e) => {
+        if (isReadOnly) return;
         e.stopPropagation();
         onSelect(id);
       }}
     >
-      <input
-        type="text"
-        value={content}
-        onChange={(e) => onUpdate(id, { content: e.target.value })}
-        className="text-input"
-        style={{
+      {isReadOnly ? (
+        <span style={{
           color: style.color,
           fontFamily: style.fontFamily,
           fontWeight: style.fontWeight,
           fontStyle: style.fontStyle,
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-      />
+          fontSize: '1rem', // Match input font size
+          whiteSpace: 'pre-wrap',
+        }}>
+          {content}
+        </span>
+      ) : (
+        <input
+          type="text"
+          value={content}
+          onChange={(e) => onUpdate(id, { content: e.target.value })}
+          className="text-input"
+          style={{
+            color: style.color,
+            fontFamily: style.fontFamily,
+            fontWeight: style.fontWeight,
+            fontStyle: style.fontStyle,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        />
+      )}
     </div>
   );
 }
 
-function DraggableImage({ id, src, position, size, isSelected, onSelect, onUpdate }) {
+function DraggableImage({ id, src, position, size, isSelected, onSelect, onUpdate, isReadOnly, scale = 1 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: id,
+    disabled: isReadOnly,
   });
   const [isResizing, setIsResizing] = useState(false);
 
+  const adjustedTransform = transform ? {
+    ...transform,
+    x: transform.x / scale,
+    y: transform.y / scale,
+  } : null;
+
   const dragStyle = {
-    transform: CSS.Translate.toString(transform),
+    transform: CSS.Translate.toString(adjustedTransform),
     left: position.x,
     top: position.y,
     width: size.width,
     height: size.height,
     position: 'absolute',
-    cursor: 'move',
+    cursor: isReadOnly ? 'default' : 'move',
     zIndex: isSelected ? 1000 : 1,
   };
 
@@ -109,12 +138,13 @@ function DraggableImage({ id, src, position, size, isSelected, onSelect, onUpdat
       {...attributes}
       className={`draggable-image ${isSelected ? 'selected' : ''}`}
       onClick={(e) => {
+        if (isReadOnly) return;
         e.stopPropagation();
         onSelect(id);
       }}
     >
       <img src={src} alt="Custom" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-      {isSelected && (
+      {isSelected && !isReadOnly && (
         <div
           className="resize-handle"
           onPointerDown={handleResizeStart}
@@ -124,20 +154,27 @@ function DraggableImage({ id, src, position, size, isSelected, onSelect, onUpdat
   );
 }
 
-function DraggableLink({ id, content, url, position, size, style, isSelected, onSelect, onUpdate }) {
+function DraggableLink({ id, content, url, position, size, style, isSelected, onSelect, onUpdate, isReadOnly, scale = 1 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: id,
+    disabled: isReadOnly,
   });
   const [isResizing, setIsResizing] = useState(false);
 
+  const adjustedTransform = transform ? {
+    ...transform,
+    x: transform.x / scale,
+    y: transform.y / scale,
+  } : null;
+
   const dragStyle = {
-    transform: CSS.Translate.toString(transform),
+    transform: CSS.Translate.toString(adjustedTransform),
     left: position.x,
     top: position.y,
     width: size.width,
     height: size.height,
     position: 'absolute',
-    cursor: 'move',
+    cursor: isReadOnly ? 'pointer' : 'move', // Pointer for link in read-only
     zIndex: isSelected ? 1000 : 1,
   };
 
@@ -178,6 +215,16 @@ function DraggableLink({ id, content, url, position, size, style, isSelected, on
       {...attributes}
       className={`draggable-link ${isSelected ? 'selected' : ''}`}
       onClick={(e) => {
+        if (isReadOnly) {
+          if (url) {
+            let finalUrl = url;
+            if (!/^https?:\/\//i.test(url)) {
+              finalUrl = 'https://' + url;
+            }
+            window.open(finalUrl, '_blank', 'noopener,noreferrer');
+          }
+          return;
+        }
         e.stopPropagation();
         onSelect(id);
       }}
@@ -188,9 +235,9 @@ function DraggableLink({ id, content, url, position, size, style, isSelected, on
         rel="noopener noreferrer"
         className="link-button"
         style={{
-          backgroundColor: style.backgroundColor || '#000000',
-          color: style.color || '#ffffff',
-          fontFamily: style.fontFamily,
+          backgroundColor: style?.backgroundColor || '#000000',
+          color: style?.color || '#ffffff',
+          fontFamily: style?.fontFamily,
           fontSize: '1rem',
           width: '100%',
           height: '100%',
@@ -199,12 +246,12 @@ function DraggableLink({ id, content, url, position, size, style, isSelected, on
           justifyContent: 'center',
           textDecoration: 'none',
           borderRadius: '8px',
-          pointerEvents: 'none', // Disable link click while editing
+          pointerEvents: 'none', // Let parent div handle click
         }}
       >
         {content}
       </a>
-      {isSelected && (
+      {isSelected && !isReadOnly && (
         <div
           className="resize-handle"
           onPointerDown={handleResizeStart}
@@ -404,13 +451,19 @@ function LinkToolbar({ item, onUpdate, onBringToFront, onSendToBack, onDelete, o
 }
 
 function DateCustomizationPage() {
-  const { dayId } = useParams();
+  const { token, dayId } = useParams();
+  const location = useLocation();
+  const isEditMode = location.pathname.includes('/edit/');
+
   const [items, setItems] = useState([]);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkFormData, setLinkFormData] = useState({ url: '', text: '' });
   const [background, setBackground] = useState({ type: 'color', value: '#f8fafc' });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const fileInputRef = useRef(null);
   const bgFileInputRef = useRef(null);
 
@@ -421,6 +474,83 @@ function DateCustomizationPage() {
       },
     })
   );
+
+  useEffect(() => {
+    const loadManifest = async () => {
+      if (!token || !dayId) return;
+      setLoading(true);
+      try {
+        // Check if the manifest exists first to avoid 400 errors
+        const files = await listFiles(`calendar/${token}/day${dayId}`);
+        const hasManifest = files.includes('manifest.json');
+
+        if (hasManifest) {
+          const manifest = await fetchJson(token, `day${dayId}/manifest.json`);
+          console.log('Loaded manifest:', manifest);
+          if (manifest) {
+            setItems(manifest.items || []);
+            setBackground(manifest.background || { type: 'color', value: '#f8fafc' });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading manifest:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadManifest();
+  }, [token, dayId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Upload any new images (data URLs) to Supabase
+      const updatedItems = await Promise.all(items.map(async (item) => {
+        if (item.type === 'image' && item.src.startsWith('data:')) {
+          // Convert data URL to Blob
+          const res = await fetch(item.src);
+          const blob = await res.blob();
+          const file = new File([blob], `image-${item.id}.png`, { type: 'image/png' });
+          const uploadRes = await uploadFile(file, `calendar/${token}/day${dayId}`, item.id);
+          return { ...item, src: uploadRes.secure_url };
+        }
+        return item;
+      }));
+
+      // Upload background if it's a data URL
+      let updatedBackground = { ...background };
+      if (background.type === 'image' && background.value.startsWith('data:')) {
+        const res = await fetch(background.value);
+        const blob = await res.blob();
+        const file = new File([blob], 'background.png', { type: 'image/png' });
+        const uploadRes = await uploadFile(file, `calendar/${token}/day${dayId}`, 'background');
+        updatedBackground.value = uploadRes.secure_url;
+      }
+
+      // Save manifest
+      const manifest = {
+        dayId,
+        items: updatedItems,
+        background: updatedBackground,
+        updatedAt: new Date().toISOString()
+      };
+
+      console.log('Saving manifest:', manifest);
+
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const file = new File([blob], 'manifest.json', { type: 'application/json' });
+      await uploadFile(file, `calendar/${token}/day${dayId}`, 'manifest.json');
+
+      setItems(updatedItems);
+      setBackground(updatedBackground);
+      alert('Saved successfully!');
+    } catch (error) {
+      console.error('Error saving:', error);
+      alert('Failed to save. Check console for details.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAddText = () => {
     const newText = {
@@ -489,6 +619,7 @@ function DateCustomizationPage() {
       color: '#ffffff',
       fontFamily: 'Arial',
     };
+    console.log('Adding new link:', newLink);
     setItems([...items, newLink]);
     setSelectedItemId(newLink.id);
     setLinkDialogOpen(false);
@@ -532,15 +663,50 @@ function DateCustomizationPage() {
     }
   };
 
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 800 });
+  const canvasRef = useRef(null);
+  const VIRTUAL_SIZE = 800;
+  const scale = canvasSize.width / VIRTUAL_SIZE;
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (canvasRef.current) {
+        const { width } = canvasRef.current.getBoundingClientRect();
+        setCanvasSize({ width, height: width }); // Square aspect ratio
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+
+    // ResizeObserver for more robust detection (e.g. drawer toggle)
+    const resizeObserver = new ResizeObserver(updateSize);
+    if (canvasRef.current) {
+      resizeObserver.observe(canvasRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      resizeObserver.disconnect();
+    };
+  }, [isDrawerOpen]); // Re-run when drawer toggles
+
   const handleDragEnd = (event) => {
+    if (!isEditMode) return;
     const { active, delta } = event;
+    console.log('Drag End:', { activeId: active.id, delta, scale });
+
     setItems((prevItems) =>
       prevItems.map((item) => {
         if (item.id === active.id) {
+          // Adjust delta by scale to map back to virtual coordinates
+          const newX = item.x + (delta.x / scale);
+          const newY = item.y + (delta.y / scale);
+          console.log('Updating item position:', item.id, { from: { x: item.x, y: item.y }, to: { x: newX, y: newY } });
           return {
             ...item,
-            x: item.x + delta.x,
-            y: item.y + delta.y,
+            x: newX,
+            y: newY,
           };
         }
         return item;
@@ -583,271 +749,317 @@ function DateCustomizationPage() {
 
   const selectedItem = items.find(item => item.id === selectedItemId);
 
+  if (loading) {
+    return <div className="loading-screen">Loading day...</div>;
+  }
+
   return (
-    <div className="customization-page" onClick={() => setSelectedItemId(null)}>
+    <div className={`customization-page ${!isEditMode ? 'view-mode' : ''}`} onClick={() => setSelectedItemId(null)}>
       <Snowfall color="#0000FF" />
       <header className="customization-header">
         <div className="header-content">
           <div className="header-left">
-            <Link to="/calendar" className="btn-back">
+            <Link to={isEditMode ? `/calendar/${token}/editor` : `/calendar/${token}`} className="btn-back">
               <ArrowLeft size={24} />
             </Link>
-            <h1>Edit Day {dayId}</h1>
+            <h1>{isEditMode ? `Edit Day ${dayId}` : `December ${dayId}`}</h1>
           </div>
-          <div className="header-actions">
-            <button type="button" className="btn-cancel" onClick={handleClear}>
-              <Eraser size={18} className="btn-icon" />
-              Clear
-            </button>
-            <button type="button" className="btn-save">
-              <Check size={18} className="btn-icon" />
-              Save
-            </button>
-          </div>
+          {isEditMode && (
+            <div className="header-actions">
+              <button type="button" className="btn-cancel" onClick={handleClear}>
+                <Eraser size={18} className="btn-icon" />
+                Clear
+              </button>
+              <button type="button" className="btn-save" onClick={handleSave} disabled={saving}>
+                <Check size={18} className="btn-icon" />
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
         <div className="header-divider"></div>
-        <p className="date-display">December {dayId}, 2025</p>
+        {isEditMode && <p className="date-display">December {dayId}, 2025</p>}
       </header>
 
       <div className="main-content">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div
-            className="canvas-area"
-            style={{
-              backgroundColor: background.type === 'color' ? background.value : 'transparent',
-              backgroundImage: background.type === 'image' ? `url(${background.value})` : 'none',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          >
-            {items.length === 0 && (
-              <div className="canvas-placeholder">
-                <p>Canvas Area</p>
-              </div>
-            )}
-            {items.map((item) => {
-              if (item.type === 'text') {
-                return (
-                  <DraggableText
-                    key={item.id}
-                    id={item.id}
-                    content={item.content}
-                    position={{ x: item.x, y: item.y }}
-                    style={{
-                      color: item.color,
-                      fontFamily: item.fontFamily,
-                      fontWeight: item.fontWeight,
-                      fontStyle: item.fontStyle,
-                    }}
-                    isSelected={selectedItemId === item.id}
-                    onSelect={setSelectedItemId}
-                    onUpdate={handleUpdateItem}
-                  />
-                );
-              } else if (item.type === 'image') {
-                return (
-                  <DraggableImage
-                    key={item.id}
-                    id={item.id}
-                    src={item.src}
-                    position={{ x: item.x, y: item.y }}
-                    size={{ width: item.width, height: item.height }}
-                    isSelected={selectedItemId === item.id}
-                    onSelect={setSelectedItemId}
-                    onUpdate={handleUpdateItem}
-                  />
-                );
-              } else if (item.type === 'link') {
-                return (
-                  <DraggableLink
-                    key={item.id}
-                    id={item.id}
-                    content={item.content}
-                    url={item.url}
-                    position={{ x: item.x, y: item.y }}
-                    size={{ width: item.width, height: item.height }}
-                    style={{
-                      backgroundColor: item.backgroundColor,
-                      color: item.color,
-                      fontFamily: item.fontFamily,
-                    }}
-                    isSelected={selectedItemId === item.id}
-                    onSelect={setSelectedItemId}
-                    onUpdate={handleUpdateItem}
-                  />
-                );
-              }
-              return null;
-            })}
-
-            {selectedItem && selectedItem.type === 'text' && (
-              <TextToolbar
-                item={selectedItem}
-                onUpdate={handleUpdateItem}
-                onBringToFront={handleBringToFront}
-                onSendToBack={handleSendToBack}
-                onDelete={handleDelete}
-                onClose={() => setSelectedItemId(null)}
-              />
-            )}
-
-            {selectedItem && selectedItem.type === 'image' && (
-              <ImageToolbar
-                item={selectedItem}
-                onBringToFront={handleBringToFront}
-                onSendToBack={handleSendToBack}
-                onDelete={handleDelete}
-                onClose={() => setSelectedItemId(null)}
-              />
-            )}
-
-            {selectedItem && selectedItem.type === 'link' && (
-              <LinkToolbar
-                item={selectedItem}
-                onUpdate={handleUpdateItem}
-                onBringToFront={handleBringToFront}
-                onSendToBack={handleSendToBack}
-                onDelete={handleDelete}
-                onClose={() => setSelectedItemId(null)}
-              />
-            )}
-          </div>
-        </DndContext>
-
-        <div className={`menu-drawer ${isDrawerOpen ? 'open' : ''}`}>
-          <button
-            className="drawer-toggle-btn"
-            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-          >
-            {isDrawerOpen ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
-          </button>
-          <div className="tool-buttons">
-            <button className="tool-btn" title="Add Text" onClick={handleAddText}>
-              <Type size={20} />
-              <span>Text</span>
-            </button>
-            <button className="tool-btn" title="Add Image" onClick={handleAddImageClick}>
-              <ImageIcon size={20} />
-              <span>Image</span>
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              accept="image/*"
-              onChange={handleImageUpload}
-            />
-            <Dialog.Root open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-              <Dialog.Trigger asChild>
-                <button className="tool-btn" title="Add Link" onClick={handleAddLink}>
-                  <Link2 size={20} />
-                  <span>Link</span>
-                </button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className="dialog-overlay" />
-                <Dialog.Content className="dialog-content">
-                  <Dialog.Title className="dialog-title">Add Link Button</Dialog.Title>
-                  <Dialog.Description className="dialog-description">
-                    Enter the URL and text for your link button.
-                  </Dialog.Description>
-                  <div className="dialog-form">
-                    <div className="form-group">
-                      <label>URL</label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com"
-                        value={linkFormData.url}
-                        onChange={(e) => setLinkFormData({ ...linkFormData, url: e.target.value })}
-                        className="dialog-input"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Button Text</label>
-                      <input
-                        type="text"
-                        placeholder="Click Here"
-                        value={linkFormData.text}
-                        onChange={(e) => setLinkFormData({ ...linkFormData, text: e.target.value })}
-                        className="dialog-input"
-                      />
-                    </div>
-                  </div>
-                  <div className="dialog-actions">
-                    <button className="btn-dialog-secondary" onClick={() => setLinkDialogOpen(false)}>Cancel</button>
-                    <button className="btn-dialog-primary" onClick={handleConfirmAddLink}>Add Link</button>
-                  </div>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-          </div>
-
-          <div className="drawer-section">
-            <div className="section-header">
-              <h3>Background</h3>
-              <div className="color-picker-wrapper">
-                <input
-                  type="color"
-                  id="bg-color"
-                  value={background.type === 'color' ? background.value : '#ffffff'}
-                  onChange={handleBackgroundColorChange}
-                />
-              </div>
-            </div>
-            <div className="background-grid">
+        <div className="canvas-wrapper">
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <div
+              className="canvas-area"
+              ref={canvasRef}
+              // Background is now on the scaler to scale with content
+              style={{
+                backgroundColor: '#f8fafc', // Default background for area
+              }}
+            >
               <div
-                className="bg-option-placeholder upload-bg"
-                onClick={() => bgFileInputRef.current?.click()}
-                title="Upload Background Image"
+                className="canvas-scaler"
+                style={{
+                  width: VIRTUAL_SIZE,
+                  height: VIRTUAL_SIZE,
+                  transform: `translate(-50%, -50%) scale(${scale})`,
+                  transformOrigin: 'center',
+                  position: 'absolute', // Ensure it sits inside relative parent
+                  top: '50%',
+                  left: '50%',
+                  backgroundColor: background.type === 'color' ? background.value : 'transparent',
+                  backgroundImage: background.type === 'image' ? `url(${background.value})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  overflow: 'hidden', // Clip content to virtual bounds
+                }}
               >
-                <ImageIcon size={20} />
+                {items.length === 0 && (
+                  <div className="canvas-placeholder" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+                    <p>{isEditMode ? 'Canvas Area' : 'Empty Day'}</p>
+                  </div>
+                )}
+                {items.map((item) => {
+                  if (item.type === 'text') {
+                    return (
+                      <DraggableText
+                        key={item.id}
+                        id={item.id}
+                        content={item.content}
+                        position={{ x: item.x, y: item.y }}
+                        style={{
+                          color: item.color,
+                          fontFamily: item.fontFamily,
+                          fontWeight: item.fontWeight,
+                          fontStyle: item.fontStyle,
+                        }}
+                        isSelected={selectedItemId === item.id}
+                        onSelect={setSelectedItemId}
+                        onUpdate={handleUpdateItem}
+                        isReadOnly={!isEditMode}
+                        scale={scale}
+                      />
+                    );
+                  } else if (item.type === 'image') {
+                    return (
+                      <DraggableImage
+                        key={item.id}
+                        id={item.id}
+                        src={item.src}
+                        position={{ x: item.x, y: item.y }}
+                        size={{ width: item.width, height: item.height }}
+                        isSelected={selectedItemId === item.id}
+                        onSelect={setSelectedItemId}
+                        onUpdate={handleUpdateItem}
+                        isReadOnly={!isEditMode}
+                        scale={scale}
+                      />
+                    );
+                  } else if (item.type === 'link') {
+                    return (
+                      <DraggableLink
+                        key={item.id}
+                        id={item.id}
+                        content={item.content}
+                        url={item.url}
+                        position={{ x: item.x, y: item.y }}
+                        size={{ width: item.width, height: item.height }}
+                        style={{
+                          backgroundColor: item.backgroundColor,
+                          color: item.color,
+                          fontFamily: item.fontFamily,
+                        }}
+                        isSelected={selectedItemId === item.id}
+                        onSelect={setSelectedItemId}
+                        onUpdate={handleUpdateItem}
+                        isReadOnly={!isEditMode}
+                        scale={scale}
+                      />
+                    );
+                  }
+                  return null;
+                })}
               </div>
+
+              {isEditMode && selectedItem && selectedItem.type === 'text' && (
+                <TextToolbar
+                  item={selectedItem}
+                  onUpdate={handleUpdateItem}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
+                  onDelete={handleDelete}
+                  onClose={() => setSelectedItemId(null)}
+                />
+              )}
+
+              {isEditMode && selectedItem && selectedItem.type === 'image' && (
+                <ImageToolbar
+                  item={selectedItem}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
+                  onDelete={handleDelete}
+                  onClose={() => setSelectedItemId(null)}
+                />
+              )}
+
+              {isEditMode && selectedItem && selectedItem.type === 'link' && (
+                <LinkToolbar
+                  item={selectedItem}
+                  onUpdate={handleUpdateItem}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
+                  onDelete={handleDelete}
+                  onClose={() => setSelectedItemId(null)}
+                />
+              )}
+            </div>
+          </DndContext>
+        </div>
+
+        {isEditMode && (
+          <div className={`menu-drawer ${isDrawerOpen ? 'open' : ''}`}>
+            <button
+              className="drawer-toggle-btn"
+              onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            >
+              {isDrawerOpen ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
+            </button>
+            <div className="tool-buttons">
+              <button className="tool-btn" title="Add Text" onClick={handleAddText}>
+                <Type size={20} />
+                <span>Text</span>
+              </button>
+              <button className="tool-btn" title="Add Image" onClick={handleAddImageClick}>
+                <ImageIcon size={20} />
+                <span>Image</span>
+              </button>
               <input
                 type="file"
-                ref={bgFileInputRef}
+                ref={fileInputRef}
                 style={{ display: 'none' }}
                 accept="image/*"
-                onChange={handleBackgroundImageUpload}
+                onChange={handleImageUpload}
               />
-              {Object.values(import.meta.glob('../assets/backgrounds/*.{png,jpg,jpeg,svg,JPG}', { eager: true })).map((mod, index) => (
-                <div
-                  key={index}
-                  className="bg-option-placeholder"
-                  style={{
-                    backgroundImage: `url(${mod.default})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                  onClick={() => setBackground({ type: 'image', value: mod.default })}
-                />
-              ))}
+              <Dialog.Root open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+                <Dialog.Trigger asChild>
+                  <button className="tool-btn" title="Add Link" onClick={handleAddLink}>
+                    <Link2 size={20} />
+                    <span>Link</span>
+                  </button>
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="dialog-overlay" />
+                  <Dialog.Content className="dialog-content">
+                    <Dialog.Title className="dialog-title">Add Link Button</Dialog.Title>
+                    <Dialog.Description className="dialog-description">
+                      Enter the URL and text for your link button.
+                    </Dialog.Description>
+                    <div className="dialog-form">
+                      <div className="form-group">
+                        <label>URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://example.com"
+                          value={linkFormData.url}
+                          onChange={(e) => setLinkFormData({ ...linkFormData, url: e.target.value })}
+                          className="dialog-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Button Text</label>
+                        <input
+                          type="text"
+                          placeholder="Click Here"
+                          value={linkFormData.text}
+                          onChange={(e) => setLinkFormData({ ...linkFormData, text: e.target.value })}
+                          className="dialog-input"
+                        />
+                      </div>
+                    </div>
+                    <div className="dialog-actions">
+                      <button className="btn-dialog-secondary" onClick={() => setLinkDialogOpen(false)}>Cancel</button>
+                      <button className="btn-dialog-primary" onClick={handleConfirmAddLink}>Add Link</button>
+                    </div>
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
             </div>
-          </div>
 
-          <div className="drawer-section">
-            <div className="section-header">
-              <h3>Stickers</h3>
-            </div>
-            <div className="sticker-grid">
-              {Object.values(import.meta.glob('../assets/stickers/*.{png,jpg,jpeg,svg}', { eager: true })).map((mod, index) => (
+            <div className="drawer-section">
+              <div className="section-header">
+                <h3>Background</h3>
+                <div className="color-picker-wrapper">
+                  <input
+                    type="color"
+                    id="bg-color"
+                    value={background.type === 'color' ? background.value : '#ffffff'}
+                    onChange={handleBackgroundColorChange}
+                  />
+                </div>
+              </div>
+              <div className="background-grid">
                 <div
-                  key={index}
-                  className="sticker-option-placeholder"
-                  style={{
-                    backgroundImage: `url(${mod.default})`,
-                    backgroundSize: 'contain',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundColor: 'transparent',
-                    border: 'none'
-                  }}
-                  onClick={() => handleAddSticker(mod.default)}
+                  className="bg-option-placeholder upload-bg"
+                  onClick={() => bgFileInputRef.current?.click()}
+                  title="Upload Background Image"
+                >
+                  <ImageIcon size={20} />
+                </div>
+                <input
+                  type="file"
+                  ref={bgFileInputRef}
+                  style={{ display: 'none' }}
+                  accept="image/*"
+                  onChange={handleBackgroundImageUpload}
                 />
-              ))}
+                {Object.values(import.meta.glob('../assets/backgrounds/*.{png,jpg,jpeg,svg,JPG}', { eager: true })).map((mod, index) => (
+                  <div
+                    key={index}
+                    className="bg-option-placeholder"
+                    style={{
+                      backgroundImage: `url(${mod.default})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                    onClick={() => setBackground({ type: 'image', value: mod.default })}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-section">
+              <div className="section-header">
+                <h3>Stickers</h3>
+              </div>
+              <div className="sticker-grid">
+                {Object.values(import.meta.glob('../assets/stickers/*.{png,jpg,jpeg,svg}', { eager: true })).map((mod, index) => (
+                  <div
+                    key={index}
+                    className="sticker-option-placeholder"
+                    style={{
+                      backgroundImage: `url(${mod.default})`,
+                      backgroundSize: 'contain',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundColor: 'transparent',
+                      border: 'none'
+                    }}
+                    onClick={() => handleAddSticker(mod.default)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+      {!isEditMode && (
+        <footer className="view-mode-footer">
+          Made with 💖 and ☕️ by{' '}
+          <a
+            href="https://instagram.com/prishaCodes"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-link"
+          >
+            @prishacodes
+          </a>
+        </footer>
+      )}
     </div>
   );
 }
