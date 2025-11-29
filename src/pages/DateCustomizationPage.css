@@ -756,6 +756,16 @@
     margin: 0 auto;
   }
 
+  .view-mode .canvas-area {
+    width: 90% !important;
+    max-width: 350px !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    margin: 0 auto !important;
+    flex: none !important;
+    /* Prevent flexbox stretching */
+  }
+
   .view-mode-footer {
     font-size: 0.75rem;
     bottom: var(--spacing-md);
