@@ -79,7 +79,7 @@ function EditorPage() {
   }, [lockedDialogOpen, selectedLockedDay]);
 
   // Construct share link (view mode URL)
-  const shareLink = `${window.location.origin}/Advent-Calender/calendar/${token}`;
+  const shareLink = `${window.location.origin}/Advent-Calender/#/calendar/${token}`;
 
   useEffect(() => {
     const loadData = async () => {
