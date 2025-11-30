@@ -4,9 +4,24 @@ import { Save2, Share, Lock } from 'iconsax-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Snowfall } from 'react-snowfall';
 import { fetchJson, listFiles } from '../services/supabase';
+import Snackbar from '../components/ui/Snackbar';
+import lockedDialogIcon from '../assets/locked-dialog-cute.png';
 import './EditorPage.css';
 
 const elementImages = import.meta.glob('/src/assets/elements/*.png', { eager: true, import: 'default' });
+
+const LOCKED_MESSAGES = [
+  "Patience, Santa's little helper! The magic is still brewing. 🎄✨",
+  "Hold your reindeer! This gift is still being wrapped. 🎁🦌",
+  "Not yet! The elves are still polishing this surprise. 🧝‍♂️✨",
+  "No peeking! Santa is watching... 👀🎅",
+  "Good things come to those who wait! (And are on the nice list) 📜✅",
+  "This door is frozen shut until the right day! ❄️🚪",
+  "Shhh! This surprise is sleeping until December rolls around. 😴💤",
+  "Whoa there, Dasher! Too fast! Wait for the date. 🛑🦌",
+  "The North Pole logic says: Not today! 🚫📍",
+  "Sipping hot cocoa... waiting for the right day! ☕️🍫"
+];
 
 function EditorPage() {
   const { token } = useParams();
@@ -19,13 +34,52 @@ function EditorPage() {
   const [loading, setLoading] = useState(true);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   // View mode specific state
   const [lockedDialogOpen, setLockedDialogOpen] = useState(false);
   const [selectedLockedDay, setSelectedLockedDay] = useState(null);
+  const [timeLeft, setTimeLeft] = useState('');
+  const [lockedMessage, setLockedMessage] = useState('');
+
+  useEffect(() => {
+    if (!lockedDialogOpen || !selectedLockedDay) return;
+
+    // Set a random message when dialog opens
+    setLockedMessage(LOCKED_MESSAGES[Math.floor(Math.random() * LOCKED_MESSAGES.length)]);
+
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const targetDate = new Date(currentYear, 11, selectedLockedDay); // Month is 0-indexed (11 = Dec)
+
+      // If target date is in the past (shouldn't happen if logic is correct, but safe fallback)
+      if (targetDate < now) {
+        return "Soon!";
+      }
+
+      const difference = targetDate - now;
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const seconds = Math.floor((difference / 1000) % 60);
+
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lockedDialogOpen, selectedLockedDay]);
 
   // Construct share link (view mode URL)
-  const shareLink = `${window.location.origin}/calendar/${token}`;
+  const shareLink = `${window.location.origin}/Advent-Calender/calendar/${token}`;
 
   useEffect(() => {
     const loadData = async () => {
@@ -71,6 +125,16 @@ function EditorPage() {
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareLink);
+    setShareDialogOpen(false);
+    setSnackbarMessage('Link copied to clipboard!');
+    setSnackbarOpen(true);
+  };
+
+  const handleSaveCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setSaveDialogOpen(false);
+    setSnackbarMessage('Link copied! Bookmark it to edit later.');
+    setSnackbarOpen(true);
   };
 
   const isDayUnlocked = (day) => {
@@ -176,7 +240,7 @@ function EditorPage() {
                       />
                       <button
                         className="btn-dialog-primary"
-                        onClick={() => navigator.clipboard.writeText(window.location.href)}
+                        onClick={handleSaveCopyLink}
                         style={{ flex: '0 0 auto' }}
                       >
                         Copy link
@@ -247,7 +311,7 @@ function EditorPage() {
                       src={imageSrc}
                       alt={`Day ${day}`}
                       className="calendar-day-image"
-                      style={{ filter: !isUnlocked && !isEditMode ? 'grayscale(100%) brightness(50%)' : 'none' }}
+                      style={{ filter: !isUnlocked && !isEditMode ? 'grayscale(50%) brightness(80%)' : 'none' }}
                     />
                   )}
                   {!isUnlocked && !isEditMode && (
@@ -270,15 +334,20 @@ function EditorPage() {
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" />
           <Dialog.Content className="dialog-content">
+            <img
+              src={lockedDialogIcon}
+              alt="Locked"
+              style={{ height: '150px', marginBottom: '1rem' }}
+            />
             <Dialog.Title className="dialog-title">
-              Day {selectedLockedDay} is Locked! 🔒
+              Opens in {timeLeft} ⏰
             </Dialog.Title>
             <Dialog.Description className="dialog-description">
-              You can't open this door yet. Come back on December {selectedLockedDay}!
+              {lockedMessage}
             </Dialog.Description>
             <div className="dialog-actions">
               <button className="btn-dialog-primary" onClick={() => setLockedDialogOpen(false)}>
-                Okay
+                I'll wait! 🎅
               </button>
             </div>
           </Dialog.Content>
@@ -296,7 +365,13 @@ function EditorPage() {
           @prishacodes
         </a>
       </footer>
-    </div>
+
+      <Snackbar
+        message={snackbarMessage}
+        isOpen={snackbarOpen}
+        onClose={() => setSnackbarOpen(false)}
+      />
+    </div >
   );
 }
 

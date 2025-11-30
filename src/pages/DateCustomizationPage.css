@@ -339,16 +339,20 @@
 
 .canvas-area {
   /* Responsive sizing: fill wrapper but keep square */
-  width: 100vmax;
-  height: 100vmax;
-  max-width: 100%;
-  max-height: 100%;
+  width: 85vmin;
+  height: 85vmin;
+  max-width: 450px;
+  /* Make it small */
+  max-height: 450px;
   aspect-ratio: 1 / 1;
   margin: auto;
   /* Centers the canvas */
   background-color: #f8fafc;
   border-radius: var(--border-radius);
-  border: 2px dashed #cbd5e1;
+  border: 1px dotted #000000;
+  /* Dotted border */
+  overflow: hidden;
+  /* Ensure content stays inside */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -362,11 +366,12 @@
 
 /* View Mode Specifics */
 .view-mode .canvas-area {
-  width: 500px;
-  height: 500px;
-  max-width: 90vmin;
-  max-height: 90vmin;
-  border: none;
+  width: 85vmin;
+  height: 85vmin;
+  max-width: 450px;
+  max-height: 450px;
+  border: 1px dotted #000000;
+  /* Explicitly set border */
   /* Cleaner look for viewing */
   box-shadow: var(--shadow-xl);
   /* Add some depth */
@@ -746,10 +751,10 @@
   }
 
   .canvas-area {
-    width: 100%;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
+    width: 85vmin;
+    height: 85vmin;
+    max-width: 450px;
+    max-height: 450px;
     /* Ensure it fits vertically */
     aspect-ratio: 1 / 1;
     overflow: hidden;
@@ -757,9 +762,9 @@
   }
 
   .view-mode .canvas-area {
-    width: 90% !important;
-    max-width: 350px !important;
-    height: auto !important;
+    width: 85vmin !important;
+    max-width: 450px !important;
+    height: 85vmin !important;
     aspect-ratio: 1 / 1 !important;
     margin: 0 auto !important;
     flex: none !important;

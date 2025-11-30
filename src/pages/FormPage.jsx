@@ -5,13 +5,54 @@ import './FormPage.css';
 import { generateToken, uploadFile } from '../services/supabase';
 import { Snowfall } from 'react-snowfall';
 
+const POPULAR_TIMEZONES = [
+  "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+  "America/Anchorage", "Pacific/Honolulu", "Europe/London", "Europe/Paris",
+  "Europe/Berlin", "Europe/Rome", "Europe/Madrid", "Europe/Amsterdam",
+  "Europe/Brussels", "Europe/Vienna", "Europe/Stockholm", "Europe/Oslo",
+  "Europe/Copenhagen", "Europe/Dublin", "Europe/Lisbon", "Europe/Athens",
+  "Europe/Helsinki", "Europe/Warsaw", "Europe/Prague", "Europe/Budapest",
+  "Europe/Bucharest", "Asia/Dubai", "Asia/Tokyo", "Asia/Shanghai",
+  "Asia/Hong_Kong", "Asia/Singapore", "Asia/Seoul", "Asia/Kolkata",
+  "Asia/Bangkok", "Asia/Jakarta", "Asia/Manila", "Asia/Kuala_Lumpur",
+  "Asia/Karachi", "Asia/Riyadh", "Asia/Tehran", "Asia/Jerusalem",
+  "Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane",
+  "Australia/Perth", "Pacific/Auckland", "America/Toronto", "America/Vancouver",
+  "America/Mexico_City", "America/Sao_Paulo", "America/Buenos_Aires",
+  "America/Lima", "America/Bogota", "America/Santiago", "Africa/Cairo",
+  "Africa/Johannesburg", "Africa/Lagos", "Africa/Nairobi", "UTC"
+];
+
+const formatTimezoneOption = (timeZone) => {
+  try {
+    const date = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'longOffset',
+    });
+    const parts = formatter.formatToParts(date);
+    const offset = parts.find(part => part.type === 'timeZoneName')?.value || '';
+
+    // Clean up timezone name for display
+    const city = timeZone.split('/').pop().replace(/_/g, ' ');
+    return `${city} (${offset})`;
+  } catch (e) {
+    return timeZone;
+  }
+};
+
 function FormPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get user's timezone and ensure it's in the list
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const allTimezones = Array.from(new Set([userTimezone, ...POPULAR_TIMEZONES]));
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    timezone: userTimezone
   });
 
   const MAX_TITLE_LENGTH = 50;
@@ -154,64 +195,11 @@ function FormPage() {
               onChange={handleChange}
               className="form-input"
             >
-              <option value="America/New_York">Eastern Time (UTC-05:00)</option>
-              <option value="America/Chicago">Central Time (UTC-06:00)</option>
-              <option value="America/Denver">Mountain Time (UTC-07:00)</option>
-              <option value="America/Los_Angeles">Pacific Time (UTC-08:00)</option>
-              <option value="America/Anchorage">Alaska Time (UTC-09:00)</option>
-              <option value="Pacific/Honolulu">Hawaii Time (UTC-10:00)</option>
-              <option value="Europe/London">London (UTC+00:00)</option>
-              <option value="Europe/Paris">Paris (UTC+01:00)</option>
-              <option value="Europe/Berlin">Berlin (UTC+01:00)</option>
-              <option value="Europe/Rome">Rome (UTC+01:00)</option>
-              <option value="Europe/Madrid">Madrid (UTC+01:00)</option>
-              <option value="Europe/Amsterdam">Amsterdam (UTC+01:00)</option>
-              <option value="Europe/Brussels">Brussels (UTC+01:00)</option>
-              <option value="Europe/Vienna">Vienna (UTC+01:00)</option>
-              <option value="Europe/Stockholm">Stockholm (UTC+01:00)</option>
-              <option value="Europe/Oslo">Oslo (UTC+01:00)</option>
-              <option value="Europe/Copenhagen">Copenhagen (UTC+01:00)</option>
-              <option value="Europe/Dublin">Dublin (UTC+00:00)</option>
-              <option value="Europe/Lisbon">Lisbon (UTC+00:00)</option>
-              <option value="Europe/Athens">Athens (UTC+02:00)</option>
-              <option value="Europe/Helsinki">Helsinki (UTC+02:00)</option>
-              <option value="Europe/Warsaw">Warsaw (UTC+01:00)</option>
-              <option value="Europe/Prague">Prague (UTC+01:00)</option>
-              <option value="Europe/Budapest">Budapest (UTC+01:00)</option>
-              <option value="Europe/Bucharest">Bucharest (UTC+02:00)</option>
-              <option value="Asia/Dubai">Dubai (UTC+04:00)</option>
-              <option value="Asia/Tokyo">Tokyo (UTC+09:00)</option>
-              <option value="Asia/Shanghai">Shanghai (UTC+08:00)</option>
-              <option value="Asia/Hong_Kong">Hong Kong (UTC+08:00)</option>
-              <option value="Asia/Singapore">Singapore (UTC+08:00)</option>
-              <option value="Asia/Seoul">Seoul (UTC+09:00)</option>
-              <option value="Asia/Kolkata">India (UTC+05:30)</option>
-              <option value="Asia/Bangkok">Bangkok (UTC+07:00)</option>
-              <option value="Asia/Jakarta">Jakarta (UTC+07:00)</option>
-              <option value="Asia/Manila">Manila (UTC+08:00)</option>
-              <option value="Asia/Kuala_Lumpur">Kuala Lumpur (UTC+08:00)</option>
-              <option value="Asia/Karachi">Karachi (UTC+05:00)</option>
-              <option value="Asia/Riyadh">Riyadh (UTC+03:00)</option>
-              <option value="Asia/Tehran">Tehran (UTC+03:30)</option>
-              <option value="Asia/Jerusalem">Jerusalem (UTC+02:00)</option>
-              <option value="Australia/Sydney">Sydney (UTC+11:00)</option>
-              <option value="Australia/Melbourne">Melbourne (UTC+11:00)</option>
-              <option value="Australia/Brisbane">Brisbane (UTC+10:00)</option>
-              <option value="Australia/Perth">Perth (UTC+08:00)</option>
-              <option value="Pacific/Auckland">Auckland (UTC+13:00)</option>
-              <option value="America/Toronto">Toronto (UTC-05:00)</option>
-              <option value="America/Vancouver">Vancouver (UTC-08:00)</option>
-              <option value="America/Mexico_City">Mexico City (UTC-06:00)</option>
-              <option value="America/Sao_Paulo">São Paulo (UTC-03:00)</option>
-              <option value="America/Buenos_Aires">Buenos Aires (UTC-03:00)</option>
-              <option value="America/Lima">Lima (UTC-05:00)</option>
-              <option value="America/Bogota">Bogota (UTC-05:00)</option>
-              <option value="America/Santiago">Santiago (UTC-03:00)</option>
-              <option value="Africa/Cairo">Cairo (UTC+02:00)</option>
-              <option value="Africa/Johannesburg">Johannesburg (UTC+02:00)</option>
-              <option value="Africa/Lagos">Lagos (UTC+01:00)</option>
-              <option value="Africa/Nairobi">Nairobi (UTC+03:00)</option>
-              <option value="UTC">UTC</option>
+              {allTimezones.map((tz) => (
+                <option key={tz} value={tz}>
+                  {formatTimezoneOption(tz)}
+                </option>
+              ))}
             </select>
             <p className="helper-text">Doors will unlock at midnight in each person's local time</p>
           </div>
